@@ -129,13 +129,31 @@ jupyter notebook notebooks/research_analysis.ipynb
 
 ## 📊 Visualizations
 
-This project includes **5 key visualizations**:
+This project includes **5 static charts** + **1 interactive dashboard**:
 
-1. **Paper Timeline (2015–2025)** — Evolution of computer vision breakthroughs
-2. **Research Gap Heatmap** — Which gaps each paper left behind
-3. **System Architecture** — RobustVision-XAI pipeline diagram
-4. **Performance Comparison** — Projected vs baseline metrics
-5. **Hallucination Examples** — OOD-triggered hallucination demonstration
+| # | File | Description |
+|---|------|-------------|
+| 1 | `assets/1_paper_timeline.png` | Evolution of 10 CV papers across research eras (2015–2025) |
+| 2 | `assets/2_gap_heatmap.png` | Gap severity heatmap: 10 papers × 8 research gaps |
+| 3 | `assets/3_architecture.png` | Full RobustVision-XAI pipeline block diagram |
+| 4 | `assets/4_performance_comparison.png` | Baseline vs proposed: bar, line, radar charts |
+| 5 | `assets/5_gap_bubble_chart.png` | Contribution vs gap severity bubble chart |
+| ⭐ | `cv_dashboard.html` | **Interactive dashboard** — 4 tabs: clickable timeline, heatmap, live charts, hoverable architecture |
+
+### 🖥️ Interactive Dashboard
+
+Open `cv_dashboard.html` in any browser for a live interactive experience:
+- **📅 Timeline tab** — Click each paper to reveal its contribution & gaps
+- **🕳️ Heatmap tab** — Color-coded gap severity across all 10 papers
+- **📊 Performance tab** — Side-by-side metrics + CHAIR hallucination line chart
+- **🏗️ Architecture tab** — Hover each pipeline module for descriptions
+
+```bash
+# Open dashboard in your default browser
+start cv_dashboard.html        # Windows
+open cv_dashboard.html         # macOS
+xdg-open cv_dashboard.html    # Linux
+```
 
 ---
 

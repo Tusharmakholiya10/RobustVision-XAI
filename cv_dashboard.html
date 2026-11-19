@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+</head>
+<body class="bg-transparent text-[var(--foreground)] p-0 m-0 antialiased">
+<div class="p-4 space-y-4">
+
+  <!-- Header -->
+  <div class="border-b border-[var(--card-border)] pb-3">
+    <h1 class="text-base font-bold text-[var(--foreground)]">🔬 RobustVision-XAI — Interactive Research Dashboard</h1>
+    <p class="text-xs text-[var(--muted-foreground)] mt-1">10 Landmark CV Papers (2015–2025) · Gap Analysis · Performance Projections</p>
+  </div>
+
+  <!-- Tab Nav -->
+  <div class="flex gap-1 text-xs flex-wrap" id="tabs">
+    <button onclick="showTab('timeline')" id="tab-timeline" class="tab-btn px-3 py-1.5 rounded-full font-semibold bg-[var(--primary)] text-[var(--primary-foreground)]">📅 Timeline</button>
+    <button onclick="showTab('gaps')" id="tab-gaps" class="tab-btn px-3 py-1.5 rounded-full text-[var(--muted-foreground)] bg-[var(--card)] border border-[var(--card-border)]">🕳️ Gap Heatmap</button>
+    <button onclick="showTab('perf')" id="tab-perf" class="tab-btn px-3 py-1.5 rounded-full text-[var(--muted-foreground)] bg-[var(--card)] border border-[var(--card-border)]">📊 Performance</button>
+    <button onclick="showTab('arch')" id="tab-arch" class="tab-btn px-3 py-1.5 rounded-full text-[var(--muted-foreground)] bg-[var(--card)] border border-[var(--card-border)]">🏗️ Architecture</button>
+  </div>
+
+  <!-- TIMELINE TAB -->
+  <div id="pane-timeline" class="tab-pane space-y-2">
+    <p class="text-xs text-[var(--muted-foreground)]">Click a paper to see its research gap.</p>
+    <div class="space-y-2" id="paper-list"></div>
+    <div id="gap-detail" class="hidden bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-3 text-xs mt-2 space-y-1"></div>
+  </div>
+
+  <!-- GAP HEATMAP TAB -->
+  <div id="pane-gaps" class="tab-pane hidden">
+    <p class="text-xs text-[var(--muted-foreground)] mb-2">Gap severity: <span class="text-green-500 font-bold">■ Low</span> <span class="text-yellow-500 font-bold">■ Moderate</span> <span class="text-red-500 font-bold">■ Severe</span></p>
+    <div class="overflow-x-auto">
+      <table class="text-xs w-full border-collapse" id="heatmap-table"></table>
+    </div>
+  </div>
+
+  <!-- PERFORMANCE TAB -->
+  <div id="pane-perf" class="tab-pane hidden space-y-3">
+    <p class="text-xs text-[var(--muted-foreground)]">Projected metrics: Baseline LLaVA-1.5 vs RobustVision-XAI</p>
+    <div id="perf-bars" class="space-y-3"></div>
+    <div class="border-t border-[var(--card-border)] pt-3">
+      <p class="text-xs font-semibold text-[var(--foreground)] mb-2">CHAIR Hallucination Rate vs OOD Severity</p>
+      <canvas id="line-chart" height="130"></canvas>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE TAB -->
+  <div id="pane-arch" class="tab-pane hidden">
+    <p class="text-xs text-[var(--muted-foreground)] mb-3">RobustVision-XAI pipeline — hover a module for details.</p>
+    <div class="relative flex flex-col items-center gap-1 text-xs" id="arch-diagram"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Data ────────────────────────────────────────────────────────────────────
+const PAPERS = [
+  { year:2015, name:"ResNet",       venue:"CVPR 2016", era:"CNN",         color:"#E74C3C",
+    gap:"❌ No OOD generalization · Black-box predictions · Rigid architecture · Heavy for edge devices",
+    contribution:"✅ Solved vanishing gradient via skip connections · Enabled 150+ layer training" },
+  { year:2017, name:"Mask R-CNN",   venue:"ICCV 2017", era:"CNN",         color:"#E74C3C",
+    gap:"❌ Fails on occluded objects · Needs massive labelled data · No open-world objects",
+    contribution:"✅ Unified object detection + pixel-level segmentation in one network" },
+  { year:2020, name:"SimCLR",       venue:"ICML 2020", era:"SSL",         color:"#F39C12",
+    gap:"❌ Needs huge batch sizes · Sensitive to augmentations · Poor dense prediction",
+    contribution:"✅ Contrastive SSL matching supervised pre-training without labels" },
+  { year:2020, name:"ViT",          venue:"ICLR 2021", era:"Transformer", color:"#3498DB",
+    gap:"❌ Needs internet-scale data · Quadratic attention cost · Shortcut learning",
+    contribution:"✅ Pure Transformer on image patches — unified text & vision architectures" },
+  { year:2020, name:"NeRF",         venue:"ECCV 2020", era:"3D",          color:"#27AE60",
+    gap:"❌ Hours to render · Fails on dynamic scenes · No semantic understanding",
+    contribution:"✅ Photo-realistic 3D novel-view synthesis from sparse 2D images" },
+  { year:2021, name:"CLIP",         venue:"ICML 2021", era:"VL",          color:"#9B59B6",
+    gap:"❌ Hallucination risk · Poor spatial reasoning · Brittle with prompt phrasing",
+    contribution:"✅ Zero-shot image classification via contrastive image-text alignment" },
+  { year:2021, name:"DINO",         venue:"ICCV 2021", era:"SSL",         color:"#F39C12",
+    gap:"❌ No task grounding · Heavy backbone · Domain-shifted on medical/satellite",
+    contribution:"✅ Self-supervised dense semantic features without any labels" },
+  { year:2023, name:"SAM",          venue:"ICCV 2023", era:"Foundation",  color:"#1ABC9C",
+    gap:"❌ No semantic class labels · Fails on camouflaged/transparent objects · Heavy encoder",
+    contribution:"✅ Promptable zero-shot universal segmentation with 1B+ masks" },
+  { year:2023, name:"3DGS",         venue:"SIGGRAPH 2023", era:"3D",      color:"#27AE60",
+    gap:"❌ No semantic understanding · Poor dynamic scenes · Memory heavy",
+    contribution:"✅ Real-time 3D Gaussian splatting replacing slow NeRF rendering" },
+  { year:2023, name:"LLaVA",        venue:"NeurIPS 2023", era:"VLM",      color:"#E91E8C",
+    gap:"❌ Hallucination · OOD brittleness · Weak spatial precision · Alignment fragile",
+    contribution:"✅ Conversational VLM via visual instruction tuning with LLM backbone" },
+];
+
+const GAPS = ["OOD\nRobust.", "Hallucin.\n/ Ground.", "XAI", "Data\nEffic.", "Spatial\n/Temporal", "Edge\nDeploy.", "Open\nWorld", "Physical\nReason."];
+const GAP_DATA = [
+  [3,1,3,1,1,2,2,1],
+  [2,1,2,3,3,2,3,1],
+  [2,0,1,3,1,2,1,0],
+  [2,1,2,3,1,3,2,1],
+  [1,0,1,2,3,3,1,2],
+  [2,3,2,1,2,2,2,1],
+  [2,2,2,1,1,3,2,0],
+  [1,2,1,2,2,3,3,1],
+  [1,2,1,2,3,3,2,3],
+  [3,3,3,2,2,2,2,2],
+];
+
+const METRICS = [
+  { label:"POPE F1 ↑ (hallucination control)", base:85.9, prop:90.2, unit:"%", good:"high" },
+  { label:"OOD mAccuracy ↑ (robustness)",       base:42.1, prop:58.7, unit:"%", good:"high" },
+  { label:"CHAIR Score ↓ (hallucination rate)", base:14.2, prop:9.8,  unit:"%", good:"low"  },
+  { label:"Calibration ECE ↓",                  base:0.18, prop:0.09, unit:"",  good:"low"  },
+  { label:"XAI Faithfulness ↑",                 base:51.3, prop:72.6, unit:"%", good:"high" },
+];
+
+const ARCH_MODULES = [
+  { label:"📷 Input Image",             sub:"Clean or OOD (fog / noise / thermal)", color:"#30363D", detail:"Raw image fed into the pipeline. Can be in-distribution (clean COCO) or OOD (foggy, thermal, medical)." },
+  { label:"🔭 Vision Encoder",          sub:"DINOv2-L / CLIP-L/14",                 color:"#1F6FEB", detail:"Extracts patch-level visual token embeddings (B×N×D). Pretrained on large-scale data." },
+  { label:"🔍 Uncertainty Estimator",   sub:"MC Dropout + Deep Ensemble (EUE)",      color:"#6E40C9", detail:"Estimates epistemic uncertainty δ at the cross-modal bottleneck. Triggers Grounding Guard when δ > threshold." },
+  { label:"🛡️ Grounding Guard",         sub:"SAM ViT-B + DINOv2 (OOD path only)",   color:"#E74C3C", detail:"Only activated for OOD inputs. Builds an object-presence prior map to constrain LLM hallucination." },
+  { label:"🧠 LLM Decoder",             sub:"Vicuna-7B + OCD-Loss fine-tuning",      color:"#0A7D6E", detail:"Generates text grounded in visual tokens. Fine-tuned with OCD-Loss to resist hallucination under OOD." },
+  { label:"📊 XAI Attribution Layer",   sub:"Grad-CAM + Attention Rollout",          color:"#6E40C9", detail:"Generates saliency heatmaps per prediction. Flags when model attends to irrelevant image regions." },
+  { label:"✅ Grounded Output",          sub:"Answer + Confidence + Heatmap",         color:"#1A7F37", detail:"Final output includes the answer, a confidence score, and a visual attribution heatmap." },
+];
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+  document.getElementById('pane-' + id).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.className = 'tab-btn px-3 py-1.5 rounded-full text-[var(--muted-foreground)] bg-[var(--card)] border border-[var(--card-border)] text-xs font-semibold';
+  });
+  const active = document.getElementById('tab-' + id);
+  active.className = 'tab-btn px-3 py-1.5 rounded-full font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] text-xs';
+  if (id === 'perf') drawLineChart();
+}
+
+// ── Timeline ─────────────────────────────────────────────────────────────────
+const list = document.getElementById('paper-list');
+PAPERS.forEach((p, i) => {
+  const row = document.createElement('div');
+  row.className = 'flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--card)] border border-transparent hover:border-[var(--card-border)] transition-all';
+  row.innerHTML = `
+    <div class="w-1 h-10 rounded-full flex-shrink-0" style="background:${p.color}"></div>
+    <div class="w-10 text-xs font-mono text-[var(--muted-foreground)] flex-shrink-0">${p.year}</div>
+    <div class="flex-1">
+      <div class="text-xs font-bold text-[var(--foreground)]">${p.name}</div>
+      <div class="text-xs text-[var(--muted-foreground)]">${p.venue} · ${p.era}</div>
+    </div>
+    <div class="text-xs px-2 py-0.5 rounded-full border" style="border-color:${p.color}; color:${p.color}">▶</div>
+  `;
+  row.onclick = () => {
+    const d = document.getElementById('gap-detail');
+    d.classList.remove('hidden');
+    d.innerHTML = `
+      <div class="font-bold text-[var(--foreground)] flex items-center gap-2">
+        <span style="color:${p.color}">●</span> ${p.name} (${p.year})
+      </div>
+      <div class="text-green-500 mt-1">${p.contribution}</div>
+      <div class="text-red-400 mt-1">${p.gap}</div>
+    `;
+  };
+  list.appendChild(row);
+});
+
+// ── Heatmap ──────────────────────────────────────────────────────────────────
+const tbl = document.getElementById('heatmap-table');
+const GAP_COLORS = ['transparent', '#1e3a1e', '#7c5a00', '#7c1a1a'];
+const GAP_TEXT   = ['', '#6ee7b7', '#fcd34d', '#fca5a5'];
+// Header
+let hdr = '<tr><th class="p-1 text-left text-[var(--muted-foreground)] text-xs">Paper</th>';
+GAPS.forEach(g => {
+  hdr += `<th class="p-1 text-center text-[var(--muted-foreground)] text-xs whitespace-pre-line leading-tight">${g}</th>`;
+});
+hdr += '</tr>';
+tbl.innerHTML = hdr;
+PAPERS.forEach((p, i) => {
+  let row = `<tr class="hover:bg-[var(--card)] transition-colors">
+    <td class="p-1.5 text-xs font-semibold whitespace-nowrap" style="color:${p.color}">${p.name}</td>`;
+  GAP_DATA[i].forEach(v => {
+    const lbl = ['','●','●●','●●●'][v];
+    row += `<td class="p-1 text-center text-xs rounded font-bold" style="background:${GAP_COLORS[v]};color:${GAP_TEXT[v]}">${lbl}</td>`;
+  });
+  row += '</tr>';
+  tbl.innerHTML += row;
+});
+
+// ── Performance Bars ──────────────────────────────────────────────────────────
+const perfDiv = document.getElementById('perf-bars');
+METRICS.forEach(m => {
+  const max = Math.max(m.base, m.prop) * 1.15;
+  const baseW  = (m.base / max * 100).toFixed(1);
+  const propW  = (m.prop / max * 100).toFixed(1);
+  const better = m.good === 'high' ? m.prop > m.base : m.prop < m.base;
+  const change = m.good === 'high'
+    ? `+${((m.prop - m.base) / m.base * 100).toFixed(0)}%`
+    : `${((m.prop - m.base) / m.base * 100).toFixed(0)}%`;
+  perfDiv.innerHTML += `
+    <div class="space-y-1">
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-[var(--foreground)]">${m.label}</span>
+        <span class="text-xs font-bold ${better ? 'text-green-400' : 'text-red-400'}">${change}</span>
+      </div>
+      <div class="space-y-0.5">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-[var(--muted-foreground)] w-16 text-right">Baseline</span>
+          <div class="flex-1 bg-[var(--card)] rounded-full h-3 relative">
+            <div class="h-3 rounded-full bg-red-500 opacity-70 transition-all" style="width:${baseW}%"></div>
+          </div>
+          <span class="text-xs font-mono text-[var(--muted-foreground)] w-10">${m.base}${m.unit}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-[var(--muted-foreground)] w-16 text-right">Proposed</span>
+          <div class="flex-1 bg-[var(--card)] rounded-full h-3 relative">
+            <div class="h-3 rounded-full bg-blue-500 transition-all" style="width:${propW}%"></div>
+          </div>
+          <span class="text-xs font-mono text-[var(--foreground)] w-10 font-bold">${m.prop}${m.unit}</span>
+        </div>
+      </div>
+    </div>`;
+});
+
+// ── Line Chart ───────────────────────────────────────────────────────────────
+function drawLineChart() {
+  const canvas = document.getElementById('line-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 500;
+  canvas.width = W; canvas.height = 130;
+  const pad = { l:36, r:16, t:12, b:28 };
+  const cw = W - pad.l - pad.r, ch = 130 - pad.t - pad.b;
+
+  const base = [14.2, 18.7, 25.3, 33.1, 42.8, 56.4];
+  const prop = [9.8, 11.2, 13.9, 17.4, 22.1, 29.8];
+  const n = base.length;
+  const maxV = 60;
+
+  const fg = getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim() || '#ccc';
+  const mu = getComputedStyle(document.documentElement).getPropertyValue('--muted-foreground').trim() || '#888';
+
+  ctx.clearRect(0, 0, W, 130);
+  // Grid
+  [0, 20, 40, 60].forEach(v => {
+    const y = pad.t + ch - (v / maxV) * ch;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + cw, y);
+    ctx.strokeStyle = '#30363D'; ctx.lineWidth = 0.5; ctx.stroke();
+    ctx.fillStyle = mu; ctx.font = '9px monospace';
+    ctx.fillText(v + '%', 0, y + 3);
+  });
+  // X labels
+  base.forEach((_, i) => {
+    const x = pad.l + (i / (n-1)) * cw;
+    ctx.fillStyle = mu; ctx.font = '9px monospace';
+    ctx.fillText('S' + i, x - 5, 130 - 6);
+  });
+
+  // Draw line fn
+  function drawLine(data, color) {
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = pad.l + (i / (n-1)) * cw;
+      const y = pad.t + ch - (v / maxV) * ch;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    data.forEach((v, i) => {
+      const x = pad.l + (i / (n-1)) * cw;
+      const y = pad.t + ch - (v / maxV) * ch;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+    });
+  }
+
+  // Fill between
+  ctx.beginPath();
+  base.forEach((v, i) => {
+    const x = pad.l + (i / (n-1)) * cw;
+    const y = pad.t + ch - (v / maxV) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  for (let i = n-1; i >= 0; i--) {
+    const x = pad.l + (i / (n-1)) * cw;
+    const y = pad.t + ch - (prop[i] / maxV) * ch;
+    ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(31,111,235,0.12)'; ctx.fill();
+
+  drawLine(base, '#E74C3C');
+  drawLine(prop, '#3B82F6');
+
+  // Legend
+  ctx.fillStyle = '#E74C3C'; ctx.fillRect(pad.l, 4, 16, 3);
+  ctx.fillStyle = mu; ctx.font = '9px sans-serif'; ctx.fillText('Baseline', pad.l + 20, 8);
+  ctx.fillStyle = '#3B82F6'; ctx.fillRect(pad.l + 75, 4, 16, 3);
+  ctx.fillStyle = mu; ctx.fillText('RobustVision-XAI', pad.l + 95, 8);
+}
+
+// ── Architecture ─────────────────────────────────────────────────────────────
+const archDiv = document.getElementById('arch-diagram');
+const info = document.createElement('div');
+info.id = 'arch-info';
+info.className = 'text-xs text-[var(--muted-foreground)] italic text-center';
+info.textContent = 'Hover a module to see details';
+
+ARCH_MODULES.forEach((m, i) => {
+  const box = document.createElement('div');
+  box.className = 'w-full max-w-sm rounded-lg border px-3 py-2 cursor-default transition-all hover:scale-105';
+  box.style.borderColor = m.color;
+  box.style.background = m.color + '18';
+  box.innerHTML = `
+    <div class="flex items-center gap-2">
+      <div class="text-xs font-bold text-[var(--foreground)]">${m.label}</div>
+    </div>
+    <div class="text-xs text-[var(--muted-foreground)]">${m.sub}</div>
+  `;
+  box.onmouseenter = () => { info.textContent = m.detail; info.style.color = m.color; };
+  box.onmouseleave = () => { info.textContent = 'Hover a module to see details'; info.style.color = ''; };
+  archDiv.appendChild(box);
+
+  if (i < ARCH_MODULES.length - 1) {
+    const arrow = document.createElement('div');
+    arrow.className = 'text-[var(--muted-foreground)] text-sm leading-none';
+    arrow.textContent = '↓';
+    archDiv.appendChild(arrow);
+  }
+});
+archDiv.appendChild(info);
+</script>
+</body>
+</html>
